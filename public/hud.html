@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OwnMotion HUD</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: -apple-system, 'Segoe UI', sans-serif;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 400px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(6, 12, 16, 0.86);
+        color: #e8f7ff;
+        font-size: 17px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #dot {
+        flex: none;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #5eead4;
+      }
+      .listening #dot {
+        background: #fbbf24;
+      }
+      .ok #dot {
+        background: #4ade80;
+      }
+      .warn #dot {
+        background: #fb7185;
+      }
+      .paused #dot {
+        background: #94a3b8;
+      }
+      #text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pill" class="idle"><span id="dot"></span><span id="text">OwnMotion</span></div>
+    <script>
+      const pill = document.getElementById('pill')
+      const text = document.getElementById('text')
+      window.electronAPI?.onHudState((state) => {
+        pill.className = state.tone
+        text.textContent = state.text
+      })
+    </script>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Sora:wght@500;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #040709;
+    color: #e8f7ff;
+    font-family: 'Space Grotesk', 'Trebuchet MS', 'Avenir Next', sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Sora', 'Space Grotesk', sans-serif;
+  }
+
+  .bg-ink {
+    background-color: #040709;
+  }
+
+  .text-mist {
+    color: #e8f7ff;
+  }
+
+  .animate-ripple {
+    animation: ripple 460ms ease-out forwards;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 0.92;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.4);
+  }
+}
