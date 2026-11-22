@@ -141,7 +141,7 @@ export const useStore = create<Store>()(
         })),
     }),
     {
-      name: "gestura-profile",
+      name: "ownmotion-profile",
       version: 1,
       // Only the user's profile survives a restart; live status never does.
       partialize: (state) => ({

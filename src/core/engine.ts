@@ -189,7 +189,7 @@ type CalibrationRun = {
   speakLevels: number[];
 };
 
-class GesturaEngine {
+class OwnMotionEngine {
   private video: HTMLVideoElement | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private landmarker: FaceLandmarker | null = null;
@@ -1255,4 +1255,4 @@ class GesturaEngine {
   }
 }
 
-export const engine = new GesturaEngine();
+export const engine = new OwnMotionEngine();
