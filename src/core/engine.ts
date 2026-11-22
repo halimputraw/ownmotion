@@ -69,6 +69,8 @@ const SCROLL_AMOUNT = 480;
 const TILT_SCROLL_DEAD = 0.25;
 const TILT_SCROLL_MAX_SPEED = 1400;
 const TILT_SCROLL_STEP = 12;
+const SCROLL_IDLE_EXIT_MS = 3000; // for automatic exit out of "scroll mode", and return to "cursor mode" when idle
+
 const FACE_LOST_MS = 500;
 const HISTORY_MS = 600;
 const HUD_REVERT_MS = 1800;
@@ -80,7 +82,7 @@ const IDLE_HUD: HudState = {
 };
 const SCROLL_HUD: HudState = {
   tone: "listening",
-  text: "Scroll mode · tilt up/down · say “cursor”",
+  text: "Scroll mode · tilt to scroll · hold still to exit",
 };
 const PAUSED_HUD: HudState = {
   tone: "paused",
@@ -236,6 +238,7 @@ class OwnMotionEngine {
   private dwellArmed = false;
 
   private scrollCarry = 0;
+  private lastScrollTiltAt = 0;
 
   private lipHistory: Array<{ t: number; gap: number }> = [];
   private lipMin = 0;
@@ -399,6 +402,7 @@ class OwnMotionEngine {
       this.resetGestures();
       this.filterX.reset();
       this.filterY.reset();
+      this.lastScrollTiltAt = performance.now();
     }
     store.setRuntime({ paused });
     store.logActivity(paused ? "Paused" : "Resumed", true);
@@ -415,6 +419,7 @@ class OwnMotionEngine {
       return;
     }
     this.scrollCarry = 0;
+    this.lastScrollTiltAt = performance.now();
     this.filterX.reset();
     this.filterY.reset();
     store.setRuntime({ scrollMode: on });
@@ -620,7 +625,7 @@ class OwnMotionEngine {
     this.filterY.minCutoff = minCutoff;
 
     if (scrollMode) {
-      this.tiltScroll(this.filterY.filter(ny * 1000, dt) / 1000, dt, settings.sensitivity);
+      this.tiltScroll(this.filterY.filter(ny * 1000, dt) / 1000, dt, settings.sensitivity, now);
       return;
     }
 
@@ -671,12 +676,17 @@ class OwnMotionEngine {
     }
   }
 
-  private tiltScroll(tilt: number, dt: number, sensitivity: number): void {
+  private tiltScroll(tilt: number, dt: number, sensitivity: number, now: number): void {
     const magnitude = Math.abs(tilt);
     if (magnitude <= TILT_SCROLL_DEAD) {
       this.scrollCarry = 0;
+      // Head held level for a while: the user is done scrolling.
+      if (now - this.lastScrollTiltAt >= SCROLL_IDLE_EXIT_MS) {
+        this.setScrollMode(false);
+      }
       return;
     }
+    this.lastScrollTiltAt = now; 
     const push = Math.min(1, (magnitude - TILT_SCROLL_DEAD) / (1 - TILT_SCROLL_DEAD));
     const speed = TILT_SCROLL_MAX_SPEED * sensitivity * push ** 1.5;
     // Head up (negative tilt) scrolls up, which is a positive scroll amount.
