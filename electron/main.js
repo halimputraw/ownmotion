@@ -19,7 +19,7 @@ mouse.config.autoDelayMs = 0
 mouse.config.mouseSpeed = 100000
 keyboard.config.autoDelayMs = 0
 
-// Tracking has to keep running while another app is in front of Gestura.
+// Tracking has to keep running while another app is in front of OwnMotion.
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-background-timer-throttling')
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
@@ -66,7 +66,7 @@ const createMainWindow = () => {
 }
 
 // A small always-on-top, click-through status pill, so the user can see what
-// Gestura heard while another app covers the main window.
+// OwnMotion heard while another app covers the main window.
 const createHudWindow = () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const hudWidth = 420
@@ -125,10 +125,13 @@ ipcMain.on('move-mouse', (_event, payload) => {
   if (!payload || !isFiniteNumber(payload.x) || !isFiniteNumber(payload.y)) {
     return
   }
-  const { width, height } = screen.getPrimaryDisplay().size
-  const x = clamp(Math.round(payload.x), 0, width - 1)
-  const y = clamp(Math.round(payload.y), 0, height - 1)
-  run('move-mouse', () => mouse.setPosition(new Point(x, y)))
+  const display = screen.getPrimaryDisplay()
+  const { width, height } = display.size
+  const x = clamp(payload.x, 0, width - 1)
+  const y = clamp(payload.y, 0, height - 1)
+  const scale = process.platform === 'darwin' ? 1 : display.scaleFactor // check if processor is Mac or Windows, because slightly differ in handling the screen size for cursor movements
+  const point = new Point(Math.round(x * scale), Math.round(y * scale))
+  run('move-mouse', () => mouse.setPosition(point))
 })
 
 ipcMain.on('mouse-click', (_event, payload) => {
