@@ -168,7 +168,7 @@ export function SettingsPanel() {
         />
         <Toggle
           label="Raise eyebrows to right-click"
-          hint="Hold your eyebrows up for a moment."
+          hint="Raise briefly to right-click. Hold for 5 seconds for scroll mode."
           checked={settings.browRightClick}
           onChange={(browRightClick) => update({ browRightClick })}
         />

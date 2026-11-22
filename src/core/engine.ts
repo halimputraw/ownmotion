@@ -55,6 +55,11 @@ const MIN_JAW_TRAVEL = 0.12;
 
 const MOUTH_HOLD_MS = 160;
 const BROW_HOLD_MS = 250;
+/** A raise shorter than this is a right-click; longer is heading for scroll mode. */
+const BROW_CLICK_MAX_MS = 1000;
+/** Holding the eyebrows up this long switches to scroll mode. */
+const BROW_SCROLL_HOLD_MS = 5000;
+
 const GESTURE_COOLDOWN_MS = 400;
 const JAW_FREEZE_MAX_MS = 1500;
 const JAW_FREEZE_LOOKBACK_MS = 120;
@@ -226,6 +231,7 @@ class OwnMotionEngine {
   private jawFired = false;
   private browOnSince: number | null = null;
   private browFired = false;
+  private browHinted = false; // remembers whether the "keep holding" hint is showing
   private gestureCooldownUntil = 0;
 
   private speaking = false;
@@ -753,7 +759,7 @@ class OwnMotionEngine {
     calibration: Calibration,
     now: number,
   ): void {
-    const { settings } = useStore.getState();
+    const { settings, scrollMode } = useStore.getState();
     const voiceBusy = this.speaking || now < this.speechCooldownUntil;
 
     if (settings.mouthClick && calibration.mouthUsable) {
@@ -797,22 +803,45 @@ class OwnMotionEngine {
       this.jawOnSince = null;
     }
 
-    if (settings.browRightClick) {
-      if (brow >= calibration.browOn && !voiceBusy) {
-        this.browOnSince ??= now;
-        if (
-          !this.browFired &&
-          now - this.browOnSince >= BROW_HOLD_MS &&
-          now >= this.gestureCooldownUntil
-        ) {
+    // Eyebrows: a short raise is a right-click (if enabled), a long hold switches to "scroll mode". The right-click fires when the eyebrows come down, because until then it is not known which one the user meant.
+    const browUp = brow >= calibration.browOn;
+    if (browUp && voiceBusy) {
+      // Speaking moves the eyebrows too; it cancels this raise.
+      this.browOnSince = null;
+      this.browFired = true;
+    } else if (browUp) {
+      this.browOnSince ??= now;
+      const held = now - this.browOnSince;
+      if (!this.browFired && !scrollMode) {
+        if (held >= BROW_SCROLL_HOLD_MS) {
           this.browFired = true;
+          this.browHinted = false;
           this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
-          this.click("right", false, "Eyebrow right-click");
+          this.setScrollMode(true);
+        } else if (held >= BROW_CLICK_MAX_MS && !this.browHinted) {
+          this.browHinted = true;
+          this.showHud({ tone: "listening", text: "Keep eyebrows up for scroll mode…" });
         }
-      } else if (brow < calibration.browOff) {
-        this.browOnSince = null;
-        this.browFired = false;
       }
+    } else if (brow < calibration.browOff) {
+      const held = this.browOnSince === null ? 0 : now - this.browOnSince;
+      if (
+        settings.browRightClick &&
+        !this.browFired &&
+        held >= BROW_HOLD_MS &&
+        held < BROW_CLICK_MAX_MS &&
+        now >= this.gestureCooldownUntil
+      ) {
+        this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
+        this.click("right", false, "Eyebrow right-click");
+      }
+      if (this.browHinted) {
+        // Let go before scroll mode started: put the normal status back.
+        this.browHinted = false;
+        this.restoreHud();
+      }
+      this.browOnSince = null;
+      this.browFired = false;
     }
   }
 
@@ -823,6 +852,7 @@ class OwnMotionEngine {
     this.jawFired = false;
     this.browOnSince = null;
     this.browFired = false;
+    this.browHinted = false;
     this.speaking = false;
     this.dictateNext = false;
     this.dwellArmed = false;
