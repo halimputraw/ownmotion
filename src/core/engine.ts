@@ -75,6 +75,7 @@ const TILT_SCROLL_DEAD = 0.25;
 const TILT_SCROLL_MAX_SPEED = 1400;
 const TILT_SCROLL_STEP = 12;
 const SCROLL_IDLE_EXIT_MS = 3000; // for automatic exit out of "scroll mode", and return to "cursor mode" when idle
+const SCROLL_IDLE_HINT_MS = 1000; // showing countdown when staying idle
 
 const FACE_LOST_MS = 500;
 const HISTORY_MS = 600;
@@ -232,6 +233,7 @@ class OwnMotionEngine {
   private browOnSince: number | null = null;
   private browFired = false;
   private browHinted = false; // remembers whether the "keep holding" hint is showing
+  private countdownShown: number | null = null;
   private gestureCooldownUntil = 0;
 
   private speaking = false;
@@ -409,6 +411,7 @@ class OwnMotionEngine {
       this.filterX.reset();
       this.filterY.reset();
       this.lastScrollTiltAt = performance.now();
+      this.countdownShown = null;
     }
     store.setRuntime({ paused });
     store.logActivity(paused ? "Paused" : "Resumed", true);
@@ -426,6 +429,7 @@ class OwnMotionEngine {
     }
     this.scrollCarry = 0;
     this.lastScrollTiltAt = performance.now();
+    this.countdownShown = null;
     this.filterX.reset();
     this.filterY.reset();
     store.setRuntime({ scrollMode: on });
@@ -687,12 +691,24 @@ class OwnMotionEngine {
     if (magnitude <= TILT_SCROLL_DEAD) {
       this.scrollCarry = 0;
       // Head held level for a while: the user is done scrolling.
-      if (now - this.lastScrollTiltAt >= SCROLL_IDLE_EXIT_MS) {
+      const idle = now - this.lastScrollTiltAt;
+      if (idle >= SCROLL_IDLE_EXIT_MS) {
         this.setScrollMode(false);
+      } else if (idle >= SCROLL_IDLE_HINT_MS) {
+        this.showCountdown(
+          Math.ceil((SCROLL_IDLE_EXIT_MS - idle) / 1000),
+          "Cursor mode in",
+          "tilt to stay",
+        );
       }
       return;
     }
-    this.lastScrollTiltAt = now; 
+    this.lastScrollTiltAt = now;
+    if (this.countdownShown !== null) {
+      // Tilting again: cancel the countdown and show the scroll status.
+      this.countdownShown = null;
+      this.showHud(SCROLL_HUD);
+    }
     const push = Math.min(1, (magnitude - TILT_SCROLL_DEAD) / (1 - TILT_SCROLL_DEAD));
     const speed = TILT_SCROLL_MAX_SPEED * sensitivity * push ** 1.5;
     // Head up (negative tilt) scrolls up, which is a positive scroll amount.
@@ -818,9 +834,13 @@ class OwnMotionEngine {
           this.browHinted = false;
           this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
           this.setScrollMode(true);
-        } else if (held >= BROW_CLICK_MAX_MS && !this.browHinted) {
+        } else if (held >= BROW_CLICK_MAX_MS) {
           this.browHinted = true;
-          this.showHud({ tone: "listening", text: "Keep eyebrows up for scroll mode…" });
+          this.showCountdown(
+            Math.ceil((BROW_SCROLL_HOLD_MS - held) / 1000),
+            "Scroll mode in",
+            "keep eyebrows up",
+          );
         }
       }
     } else if (brow < calibration.browOff) {
@@ -838,6 +858,7 @@ class OwnMotionEngine {
       if (this.browHinted) {
         // Let go before scroll mode started: put the normal status back.
         this.browHinted = false;
+        this.countdownShown = null;
         this.restoreHud();
       }
       this.browOnSince = null;
@@ -853,6 +874,7 @@ class OwnMotionEngine {
     this.browOnSince = null;
     this.browFired = false;
     this.browHinted = false;
+    this.countdownShown = null;
     this.speaking = false;
     this.dictateNext = false;
     this.dwellArmed = false;
@@ -1235,6 +1257,14 @@ class OwnMotionEngine {
     }
     const { paused, scrollMode } = useStore.getState();
     this.showHud(paused ? PAUSED_HUD : scrollMode ? SCROLL_HUD : IDLE_HUD);
+  }
+
+  private showCountdown(seconds: number, prefix: string, hint: string): void {
+    if (seconds === this.countdownShown) {
+      return;
+    }
+    this.countdownShown = seconds;
+    this.showHud({ tone: "listening", text: `${prefix} ${seconds}s · ${hint}` });
   }
 
   // ------------------------------------------------------------------ overlay
