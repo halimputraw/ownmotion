@@ -156,10 +156,10 @@ export function SettingsPanel() {
           onChange={(lipGate) => update({ lipGate })}
         />
         <Toggle
-          label="Open mouth to click"
+          label="Open mouth to click or drag"
           hint={
             mouthUsable
-              ? "Ignored automatically while you are speaking."
+              ? "Open briefly to click. Hold open for 1 second to drag, open again to drop. Ignored while you are speaking."
               : "Not available: recalibrate to try again."
           }
           checked={settings.mouthClick && mouthUsable}

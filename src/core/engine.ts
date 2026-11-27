@@ -54,6 +54,10 @@ const NEUTRAL_SETTLE_MS = 1000;
 const MIN_JAW_TRAVEL = 0.12;
 
 const MOUTH_HOLD_MS = 160;
+/** Holding the mouth open this long picks up what is under the cursor (drag). */
+const MOUTH_DRAG_HOLD_MS = 1000;
+/** After this long with the mouth open, a "keep holding to drag" hint appears. */
+const MOUTH_DRAG_HINT_MS = 450;
 const BROW_HOLD_MS = 250;
 /** A raise shorter than this is a right-click; longer is heading for scroll mode. */
 const BROW_CLICK_MAX_MS = 1000;
@@ -233,6 +237,7 @@ class OwnMotionEngine {
   private browOnSince: number | null = null;
   private browFired = false;
   private browHinted = false; // remembers whether the "keep holding" hint is showing
+  private mouthHinted = false; // remembers whether the "keep mouth open to drag" hint is showing
   private countdownShown: number | null = null;
   private gestureCooldownUntil = 0;
 
@@ -796,27 +801,59 @@ class OwnMotionEngine {
       } else {
         this.jawFreezeSince = null;
         this.jawFreezeExpired = false;
-        this.jawFired = false;
       }
 
-      if (jaw >= calibration.jawOn && !voiceBusy) {
+      // Mouth: a short opening is a left click, holding it open for a second
+      // picks up what is under the cursor (drag), and opening it again drops
+      // it. The click fires when the mouth closes, because until then it is not
+      // known whether the user meant a click or a drag.
+      const dragging = useStore.getState().dragging;
+      if (jaw >= calibration.jawOn && voiceBusy) {
+        // Talking opens the mouth too; speech cancels this opening.
+        this.jawOnSince = null;
+        this.jawFired = true;
+        this.clearMouthHint();
+      } else if (jaw >= calibration.jawOn) {
         this.jawOnSince ??= now;
+        const held = now - this.jawOnSince;
+        if (!this.jawFired && now >= this.gestureCooldownUntil) {
+          if (dragging && held >= MOUTH_HOLD_MS) {
+            this.jawFired = true;
+            this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
+            this.dropDrag("Mouth: drop");
+          } else if (!dragging && held >= MOUTH_DRAG_HOLD_MS) {
+            this.jawFired = true;
+            this.mouthHinted = false;
+            this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
+            this.startDrag("Mouth: drag");
+          } else if (!dragging && held >= MOUTH_DRAG_HINT_MS && !this.mouthHinted) {
+            this.mouthHinted = true;
+            this.showHud({ tone: "listening", text: "Keep mouth open to drag…" });
+          }
+        }
+      } else if (jaw <= calibration.jawOff) {
+        const held = this.jawOnSince === null ? 0 : now - this.jawOnSince;
         if (
           !this.jawFired &&
-          now - this.jawOnSince >= MOUTH_HOLD_MS &&
+          !dragging &&
+          held >= MOUTH_HOLD_MS &&
+          held < MOUTH_DRAG_HOLD_MS &&
           now >= this.gestureCooldownUntil
         ) {
-          this.jawFired = true;
+          this.mouthHinted = false;
           this.gestureCooldownUntil = now + GESTURE_COOLDOWN_MS;
           this.click("left", false, "Mouth click");
+        } else {
+          this.clearMouthHint();
         }
-      } else {
-        // Talking opens the mouth too; speech always cancels a pending click.
         this.jawOnSince = null;
+        this.jawFired = false;
       }
     } else {
       this.jawFreezeSince = null;
       this.jawOnSince = null;
+      this.jawFired = false;
+      this.clearMouthHint();
     }
 
     // Eyebrows: a short raise is a right-click (if enabled), a long hold switches to "scroll mode". The right-click fires when the eyebrows come down, because until then it is not known which one the user meant.
@@ -871,6 +908,7 @@ class OwnMotionEngine {
     this.jawFreezeExpired = false;
     this.jawOnSince = null;
     this.jawFired = false;
+    this.mouthHinted = false;
     this.browOnSince = null;
     this.browFired = false;
     this.browHinted = false;
@@ -897,6 +935,28 @@ class OwnMotionEngine {
     if (useStore.getState().dragging) {
       window.electronAPI?.setMouseDown(false);
       useStore.getState().setRuntime({ dragging: false });
+    }
+  }
+
+  /** Presses and holds the left button so moving the head drags. */
+  private startDrag(label: string): void {
+    window.electronAPI?.setMouseDown(true);
+    const store = useStore.getState();
+    store.setRuntime({ dragging: true });
+    store.logActivity(label, true);
+    this.flashHud({ tone: "ok", text: "Picked up · move your head to drag" });
+  }
+
+  private dropDrag(label: string): void {
+    this.releaseDrag();
+    useStore.getState().logActivity(label, true);
+    this.flashHud({ tone: "ok", text: "Dropped" });
+  }
+
+  private clearMouthHint(): void {
+    if (this.mouthHinted) {
+      this.mouthHinted = false;
+      this.restoreHud();
     }
   }
 
@@ -1255,7 +1315,15 @@ class OwnMotionEngine {
     if (this.dictateNext) {
       return;
     }
-    const { paused, scrollMode } = useStore.getState();
+    const { paused, scrollMode, dragging, settings, calibration } = useStore.getState();
+    if (!paused && dragging) {
+      const mouth = settings.mouthClick && (calibration?.mouthUsable ?? false);
+      this.showHud({
+        tone: "listening",
+        text: mouth ? "Dragging · open mouth or say “drop”" : "Dragging · say “drop”",
+      });
+      return;
+    }
     this.showHud(paused ? PAUSED_HUD : scrollMode ? SCROLL_HUD : IDLE_HUD);
   }
 

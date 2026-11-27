@@ -12,6 +12,7 @@ OwnMotion is an Electron desktop app for hands-free computer control.
 - **Voice that adapts to you and the room.** Calibration measures the room's background noise and how loud your voice is at this microphone. While running, the speech threshold rises automatically when the room gets louder, and a warning appears when noise is close to drowning you out.
 - **The camera double-checks the microphone.** A sound only counts as a command if your lips moved while it was heard, so other people talking, music and background noise are ignored.
 - **Other ways to click:** open your mouth, raise your eyebrows (right-click) or hold the cursor still (dwell click). Each can be switched on or off.
+- **Drag with your mouth.** Hold your mouth open for 1 second to pick up what is under the cursor, move your head to drag it, then open your mouth again to drop it. A short mouth opening is still a click; it fires when the mouth closes.
 - **Scroll by tilting your head.** Say "scroll" (or press **Scroll mode**), then tilt your head up or down to scroll the page; the further you tilt, the faster it goes. Say "cursor" to go back to moving the cursor.
 - **Two control modes.** *Direct*: the cursor goes where your head points. *Joystick*: lean your head to steer, for users with a small range of movement.
 - **Always-visible status pill** at the bottom of the screen shows what OwnMotion heard, even when another app covers its window.
